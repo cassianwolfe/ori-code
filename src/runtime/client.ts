@@ -15,6 +15,7 @@ import { DEFAULTS } from "../config/defaults";
 import { getNativeToolsConfig } from "../config/switchbay-config";
 import { getLocalMode } from "../config/local-mode";
 import { recordOpenRouterRequest } from "./openrouter-rate-limiter";
+import { logRouterDecision } from "../db/router-log";
 
 export class RateLimitError extends Error {
   constructor(
@@ -262,7 +263,9 @@ class RuntimeRouteTagClient implements ChatRuntimeClient {
     request: ChatCompletionRequest,
     options?: Parameters<ChatRuntimeClient["createChatCompletion"]>[2],
   ): Promise<ChatCompletionResponse> {
+    const start = Date.now();
     const response = await this.inner.createChatCompletion(surface, request, options);
+    const latency = Date.now() - start;
     response.meta = {
       ...response.meta,
       provider: response.meta?.provider ?? this.route.provider,
@@ -272,6 +275,19 @@ class RuntimeRouteTagClient implements ChatRuntimeClient {
       router_reason: response.meta?.router_reason ?? this.route.routerReason ?? undefined,
       router_mode: response.meta?.router_mode ?? this.route.routerMode ?? undefined,
     };
+    logRouterDecision({
+      session_id: options?.sessionId ?? null,
+      surface,
+      provider: response.meta.provider ?? this.route.provider ?? null,
+      model: response.meta.model ?? this.route.model ?? null,
+      lane: this.route.using?.split("/")?.[1] ?? null,
+      intent: response.meta.router_intent ?? null,
+      reason: response.meta.router_reason ?? null,
+      mode: response.meta.router_mode ?? null,
+      input_tokens: response.usage?.input_tokens ?? null,
+      output_tokens: response.usage?.output_tokens ?? null,
+      latency_ms: latency,
+    }).catch(() => {});
     return response;
   }
 }

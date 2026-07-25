@@ -2,6 +2,7 @@ import { platform } from "node:os";
 import { join } from "node:path";
 import { readdirSync, readFileSync } from "node:fs";
 import { loadEngineRegistry, type EngineManifest, type EngineTool } from "./registry";
+import { upsertEngineHealth } from "../db/engine-health";
 
 // Python stdlib module names — not installable via pip
 const PYTHON_STDLIB = new Set([
@@ -532,7 +533,19 @@ export type EngineHealthResult = {
 
 export async function healthCheckEngines(cwd = process.cwd()): Promise<EngineHealthResult[]> {
   const registry = await loadEngineRegistry(cwd);
-  return Promise.all(registry.engines.map((engine) => healthCheckEngine(engine, cwd)));
+  const results = await Promise.all(registry.engines.map((engine) => healthCheckEngine(engine, cwd)));
+  // Persist to DuckDB — fire and forget, don't block the health check
+  Promise.all(
+    results.map((r) =>
+      upsertEngineHealth({
+        id: r.id,
+        name: r.name,
+        status: r.status === "ok" ? "healthy" : r.status === "warn" ? "degraded" : "offline",
+        message: r.doctorOutput?.slice(0, 500) ?? null,
+      }).catch(() => {}),
+    ),
+  );
+  return results;
 }
 
 async function healthCheckEngine(engine: EngineManifest, cwd: string): Promise<EngineHealthResult> {

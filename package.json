@@ -36,9 +36,11 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@duckdb/node-api": "^1.5.5-r.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ink": "^7.0.0",
     "ink-text-input": "^6.0.0",
+    "neo4j-driver": "^6.2.0",
     "react": "^19.2.5",
     "zod": "^4.4.3"
   },

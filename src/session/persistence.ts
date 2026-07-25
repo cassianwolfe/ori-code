@@ -5,6 +5,8 @@ import {
   createThoughtFrame,
   type SessionState,
 } from "../agent/turn-state";
+import { upsertSession } from "../db/sessions";
+import { saveSessionGraph } from "../graph/memory";
 
 function getSessionPaths() {
   const sessionDir = Bun.env.SWITCHBAY_SESSION_DIR ??
@@ -57,6 +59,23 @@ export async function savePersistedSession(state: SessionState): Promise<void> {
     // Also save a unique record
     const uniquePath = path.join(sessionDir, `session-${state.sessionId}.json`);
     await Bun.write(uniquePath, content);
+
+    // Persist metadata to DuckDB
+    upsertSession({
+      id: state.sessionId,
+      workspace: state.workspace?.cwd ?? null,
+      message_count: state.conversation.length,
+    }).catch(() => {});
+
+    // Persist session graph to Neo4j (fire-and-forget)
+    saveSessionGraph({
+      id: state.sessionId,
+      workspace: state.workspace?.cwd ?? null,
+      lane: null,
+      model: null,
+      provider: null,
+      messages: state.conversation,
+    }).catch(() => {});
   } catch (e) {
     // Silent fail on save errors
   }

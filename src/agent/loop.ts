@@ -59,6 +59,7 @@ import { buildWorkflowsPromptBlock, listWorkflows } from "../workflows/store";
 import { formatUserContextPromptBlock, loadUserContext } from "../context/user-context";
 import { getNativeToolsConfig } from "../config/switchbay-config";
 import { nativeEnvironmentAvailability } from "../environment/native-environment";
+import { buildGraphMemoryPromptBlock } from "../graph/memory";
 
 export async function generatePlan(
   client: ChatRuntimeClient,
@@ -542,11 +543,12 @@ export async function buildTurn(input: {
     } catch { /* ignore */ }
   }
 
-  const [userContext, workspaceProfileBlock, activePlanBlock, workflowsBlock] = await Promise.all([
+  const [userContext, workspaceProfileBlock, activePlanBlock, workflowsBlock, graphMemoryBlock] = await Promise.all([
     loadUserContext(),
     isEdgeLane ? Promise.resolve("") : buildWorkspaceProfilePromptBlock(cwd),
     isEdgeLane ? Promise.resolve("") : buildActivePlanPromptBlock(cwd),
     isEdgeLane ? Promise.resolve("") : buildWorkflowsPromptBlock(cwd),
+    isEdgeLane ? Promise.resolve("") : buildGraphMemoryPromptBlock(cwd, input.sessionId).catch(() => ""),
   ]);
   const userContextBlock = isEdgeLane ? "" : formatUserContextPromptBlock(userContext);
   const nativeTools = getNativeToolsConfig();
@@ -598,7 +600,7 @@ Current Workspace: ${cwd}
 Current Local Date: ${currentDate}
 Runtime Lane: ${input.runtimeLane ?? "cloud"}
 Tool Mode: ${effectiveToolMode}
-Identity: Speak as the model you actually are. Switchbay owns the workspace, tools, memory, safety gates, and working standards; it is not a fictional assistant identity.${userContextBlock}${oriMdBlock}${workspaceProfileBlock}${pinsBlock}${activePlanBlock}${workflowsBlock}${agentBlock}${capabilityDirectoryBlock}${toolboxBlock}${guidesBlock}${switchbayMcpBlock}${extraContextBlock}
+Identity: Speak as the model you actually are. Switchbay owns the workspace, tools, memory, safety gates, and working standards; it is not a fictional assistant identity.${userContextBlock}${oriMdBlock}${workspaceProfileBlock}${pinsBlock}${activePlanBlock}${workflowsBlock}${graphMemoryBlock}${agentBlock}${capabilityDirectoryBlock}${toolboxBlock}${guidesBlock}${switchbayMcpBlock}${extraContextBlock}
 
 SHARED AUTHORING REPOSITORIES:
 ${describeSharedAssetRoots(cwd)}
